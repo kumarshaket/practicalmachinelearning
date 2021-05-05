@@ -1,0 +1,136 @@
+---
+title: "Machine Learning Prediction Assignment"
+author: "Kumar Shaket"
+date: "04/05/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+## Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively.In this project , we are going to use the data frrom accelerometer on the belt, forearm,arm and dumbell of 6 participatns and perform prediction to pefcorm barbell lift correctly and incorrectly in 5 different way
+# Loading Libraries
+```{r}
+library(lattice)
+library(ggplot2)
+library(caret)
+library(randomForest)
+library(rattle)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(corrplot)
+library(gbm)
+set.seed(1234)
+```
+# Data Processing
+
+## Loading Csv files
+```{r}
+trainraw <- read.csv(file="~/Desktop/Coursera/practicalmachinelearning/Data/pml-training.csv",header = TRUE)
+validraw <- read.csv(file="~/Desktop/Coursera/practicalmachinelearning/Data/pml-testing.csv",header = TRUE)
+```
+
+## Count of records in training and test data
+```{r}
+dim(trainraw)
+dim(validraw)
+```
+
+## Cleanning up data to remove any variables containing missing value
+```{r}
+trainData<- trainraw[, colSums(is.na(trainraw)) == 0]
+dim(trainData)
+validData<- validraw[, colSums(is.na(validraw)) == 0]
+dim(validData)
+```
+
+## Removing first 7 variables as they have little impact in the prediction
+```{r}
+trainData <- trainData[, -c(1:7)]
+dim(trainData)
+validData <- validData[,-c(1:7)]
+dim(validData)
+```
+## Futher removing variables that are near zero variance from training data set
+```{r}
+nzv <- nearZeroVar(trainData)
+trainData <-trainData[,-nzv]
+dim(trainData)
+```
+
+## Preparing the dataset for prediction
+```{r}
+inTrain <- createDataPartition(trainData$classe,p=0.7,list=FALSE)
+training <- trainData[inTrain,]
+testing <- trainData[-inTrain,]
+dim(training)
+dim(testing)
+```
+#Model building
+For this project we will use three  different algorithms to predict the outcome.
+1. Classification Trees
+2. Random Forests
+3. Generalized Boosted Model
+
+## Prediction with classification trees
+We first obtail the model, and then we use the fancyRpartPlot() function to plot the classification tree as a dendogram.
+```{r}
+mod_tree <- rpart(classe ~ ., data=training, method="class")
+fancyRpartPlot(mod_tree)
+```
+Running Prediction on Testing dataset and preparing confusion matrix
+```{r}
+predict_mod <- predict(mod_tree,testing,type="class")
+cmtree <- confusionMatrix(predict_mod,testing$classe)
+cmtree
+```
+
+### We see that the accuracy rate of the model is low: 0.6967 
+
+## Prediction with Random Forest
+```{r}
+controlRF <- trainControl(method="cv", number=3, verboseIter=FALSE)
+modRF1 <- train(classe ~ ., data=training, method="rf", trControl=controlRF)
+modRF1$finalModel
+```
+Running prediction on Testing Data and preparing confusion matrix
+```{r}
+predictRF1 <- predict(modRF1, newdata=testing)
+cmrf <- confusionMatrix(predictRF1,testing$classe)
+cmrf
+```
+
+### Plot
+```{r}
+plot(modRF1)
+```
+
+## Gradient Boosted Trees
+```{r}
+set.seed(1234)
+controlGBM <- trainControl(method = "repeatedcv", number = 5, repeats = 1)
+modGBM  <- train(classe ~ ., data=trainData, method = "gbm", trControl = controlGBM, verbose = FALSE)
+modGBM$finalModel
+```  
+```{r}
+print(modGBM)
+```
+Running prediction on Testing Datasets and preparing confusion matrix
+```{r}
+predictGBM <- predict(modGBM,newdata=testing)
+cmGBM <- confusionMatrix(predictGBM,testing$classe)
+cmGBM
+```
+
+## Based on comparision , The accuracy rate using the random forest is very high: Accuracy : 0.9897 and therefore the *out-of-sample-error is equal to 0.0103**.
+
+# Applying the Best Model to the Validation Data
+By comparing the accuracy rate values of three modesl, it is clear the Random Forest model is best model for prediction and hence we are running this model on top of validation data.
+```{r}
+Results <- predict(modRF1,newdata=validData)
+Results
+```
